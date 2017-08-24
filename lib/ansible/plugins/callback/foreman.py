@@ -63,8 +63,8 @@ class CallbackModule(CallbackBase):
                                   "/etc/foreman/client_key.pem"))
     FOREMAN_SSL_VERIFY = os.getenv('FOREMAN_SSL_VERIFY', "1")
     FOREMAN_HEADERS = {
-      "Content-Type": "application/json",
-      "Accept": "application/json"
+        "Content-Type": "application/json",
+        "Accept": "application/json"
     }
     TIME_FORMAT = "%Y-%m-%d %H:%M:%S %f"
 
@@ -82,6 +82,13 @@ class CallbackModule(CallbackBase):
         else:
             self._disable_plugin('The `requests` python module is not installed.')
 
+        if self.FOREMAN_URL.startswith('https://'):
+            if not os.path.exists(self.FOREMAN_SSL_CERT[0]):
+                self._disable_plugin('FOREMAN_SSL_CERT %s not found.' % self.FOREMAN_SSL_CERT[0])
+
+            if not os.path.exists(self.FOREMAN_SSL_CERT[1]):
+                self._disable_plugin('FOREMAN_SSL_KEY %s not found.' % self.FOREMAN_SSL_CERT[1])
+
     def _disable_plugin(self, msg):
         self.disabled = True
         self._display.warning(msg + ' Disabling the Foreman callback plugin.')
@@ -94,7 +101,7 @@ class CallbackModule(CallbackBase):
             self._display.warning("SSL verification of %s disabled" %
                                   self.FOREMAN_URL)
             verify = False
-        else:  # Set ta a CA bundle:
+        else:  # Set to a CA bundle:
             verify = self.FOREMAN_SSL_VERIFY
         return verify
 
@@ -123,11 +130,17 @@ class CallbackModule(CallbackBase):
                 level = 'err'
             else:
                 level = 'notice' if 'changed' in msg and msg['changed'] else 'info'
-            logs.append({"log": {
-                'sources': {'source': source},
-                'messages': {'message': json.dumps(msg)},
-                'level':     level
-                }})
+            logs.append({
+                "log": {
+                    'sources': {
+                        'source': source
+                    },
+                    'messages': {
+                        'message': json.dumps(msg)
+                    },
+                    'level': level
+                }
+            })
         return logs
 
     def send_reports(self, stats):
@@ -154,8 +167,8 @@ class CallbackModule(CallbackBase):
                     "metrics": metrics,
                     "status": status,
                     "logs": log,
-                    }
-                 }
+                }
+            }
             # To be changed to /api/v2/config_reports in 1.11.  Maybe we
             # could make a GET request to get the Foreman version & do
             # this automatically.
@@ -189,10 +202,8 @@ class CallbackModule(CallbackBase):
 
     def v2_runner_on_ok(self, result):
         res = result._result
-        try:
-            module = res['invocation']['module_name']
-        except KeyError:
-            module = None
+        module = result._task.action
+
         if module == 'setup':
             host = result._host.get_name()
             self.send_facts(host, res)
